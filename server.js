@@ -19,7 +19,9 @@ const CHANNELS = [
   "lyvickmax",
   "skyrroztv",
   "cohhcarnage",
-  "lvndmark"
+  "lvndmark",
+  "eslcs",
+  "explorajeux"
 ];
 
 let accessToken = null;
@@ -148,3 +150,4 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("API running on port " + PORT));
+
