@@ -10,10 +10,10 @@ app.use(express.json());
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 
-// Toutes tes chaînes, avec l'ordre de priorité de base
-// (on va ensuite trier selon qui est live ou non)
+// Toutes tes chaînes, avec l'ordre de priorité d'origine
+// (lvndmark et eslcs AVANT explorajeux dans la base)
 const CHANNELS = [
-  "valiv2",          // Vali - priorité absolue
+  "valiv2",          // priorité absolue
   "crackthecode1",   // toi
   "whiteshad0wz1989",
   "lyvickmax",
@@ -102,10 +102,39 @@ async function getLiveStatus() {
   return data.data.map(s => s.user_login.toLowerCase());
 }
 
+// 🔼 Petite fonction pour booster explorajeux au-dessus de lvndmark + eslcs SI live
+function boostExploraIfLive(arr) {
+  const SPECIAL = "explorajeux";
+  const BEFORE_TARGETS = ["lvndmark", "eslcs"];
+
+  if (!arr.includes(SPECIAL)) return arr;
+
+  const boosted = arr.slice();
+  const specialIndex = boosted.indexOf(SPECIAL);
+
+  // Trouver la première position parmi lvndmark / eslcs dans la liste live
+  let targetIndex = null;
+  for (const t of BEFORE_TARGETS) {
+    const idx = boosted.indexOf(t);
+    if (idx !== -1) {
+      targetIndex = targetIndex === null ? idx : Math.min(targetIndex, idx);
+    }
+  }
+
+  // Si aucune cible ou déjà avant → rien à changer
+  if (targetIndex === null || specialIndex < targetIndex) return boosted;
+
+  // On retire explorajeux de sa position et on le remet juste avant la première cible
+  boosted.splice(specialIndex, 1);
+  boosted.splice(targetIndex, 0, SPECIAL);
+
+  return boosted;
+}
+
 // Route principale : /live-order
 app.get("/live-order", async (req, res) => {
   try {
-    const liveList = await getLiveStatus();  // ex: ["valiv2","skyrroztv"]
+    const liveList = await getLiveStatus();  // ex: ["valiv2","explorajeux"]
 
     const live = [];
     const offline = [];
@@ -117,20 +146,26 @@ app.get("/live-order", async (req, res) => {
     }
 
     const vali = "valiv2";
-    const liveNoVali = live.filter(c => c.toLowerCase() !== vali.toLowerCase());
+    const valiLower = vali.toLowerCase();
 
     let ordered = [];
 
-    if (liveList.includes(vali.toLowerCase())) {
-      // 🎯 Vali est live → il est toujours #1
+    if (liveList.includes(valiLower)) {
+      // 🎯 Vali est live → toujours #1
+      const liveNoVali = live.filter(c => c.toLowerCase() !== valiLower);
+
+      // 👉 On boost explorajeux uniquement à l'intérieur des chaînes live (hors Vali)
+      const boostedLiveNoVali = boostExploraIfLive(liveNoVali);
+
       ordered = [
         vali,
-        ...liveNoVali,
-        ...offline.filter(c => c.toLowerCase() !== vali.toLowerCase())
+        ...boostedLiveNoVali,
+        ...offline.filter(c => c.toLowerCase() !== valiLower)
       ];
     } else {
-      // Vali n'est pas live → on garde l'ordre: live d'abord, puis offline
-      ordered = [...live, ...offline];
+      // Vali n'est pas live → on boost explorajeux seulement dans la partie live
+      const boostedLive = boostExploraIfLive(live);
+      ordered = [...boostedLive, ...offline];
     }
 
     res.json({ ordered, live: liveList });
@@ -150,4 +185,5 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("API running on port " + PORT));
+
 
