@@ -10,11 +10,12 @@ app.use(express.json());
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 
-// Toutes tes chaînes, avec l'ordre de priorité d'origine
-// (lvndmark et eslcs AVANT explorajeux dans la base)
+// 🎯 AJOUT : dacemaster + lesfaineants dans la liste surveillée
 const CHANNELS = [
-  "valiv2",          // priorité absolue
-  "crackthecode1",   // toi
+  "valiv2",
+  "crackthecode1",
+  "dacemaster",      // ← ajouté
+  "lesfaineants",    // ← ajouté
   "whiteshad0wz1989",
   "lyvickmax",
   "skyrroztv",
@@ -82,27 +83,22 @@ async function getLiveStatus() {
     data = JSON.parse(text);
   } catch (e) {
     console.error("❌ Erreur JSON Twitch /streams:", text);
-    // On ne casse pas tout : on considère qu'il n'y a personne de live
     return [];
   }
 
   if (!res.ok) {
     console.error("❌ Erreur Twitch /streams:", data);
-    // Pareil : pas de live si erreur
     return [];
   }
 
   if (!data || !Array.isArray(data.data)) {
     console.error("❌ Format inattendu Twitch /streams:", data);
-    // Pas de tableau data.data → personne live
     return [];
   }
 
-  // Ici seulement on fait .map, car on sait que data.data est un tableau
   return data.data.map(s => s.user_login.toLowerCase());
 }
 
-// 🔼 Petite fonction pour booster explorajeux au-dessus de lvndmark + eslcs SI live
 function boostExploraIfLive(arr) {
   const SPECIAL = "explorajeux";
   const BEFORE_TARGETS = ["lvndmark", "eslcs"];
@@ -112,7 +108,6 @@ function boostExploraIfLive(arr) {
   const boosted = arr.slice();
   const specialIndex = boosted.indexOf(SPECIAL);
 
-  // Trouver la première position parmi lvndmark / eslcs dans la liste live
   let targetIndex = null;
   for (const t of BEFORE_TARGETS) {
     const idx = boosted.indexOf(t);
@@ -121,10 +116,8 @@ function boostExploraIfLive(arr) {
     }
   }
 
-  // Si aucune cible ou déjà avant → rien à changer
   if (targetIndex === null || specialIndex < targetIndex) return boosted;
 
-  // On retire explorajeux de sa position et on le remet juste avant la première cible
   boosted.splice(specialIndex, 1);
   boosted.splice(targetIndex, 0, SPECIAL);
 
@@ -134,12 +127,11 @@ function boostExploraIfLive(arr) {
 // Route principale : /live-order
 app.get("/live-order", async (req, res) => {
   try {
-    const liveList = await getLiveStatus();  // ex: ["valiv2","explorajeux"]
+    const liveList = await getLiveStatus();
 
     const live = [];
     const offline = [];
 
-    // Sépare les chaînes live et offline en respectant l'ordre de CHANNELS
     for (const ch of CHANNELS) {
       if (liveList.includes(ch.toLowerCase())) live.push(ch);
       else offline.push(ch);
@@ -151,10 +143,7 @@ app.get("/live-order", async (req, res) => {
     let ordered = [];
 
     if (liveList.includes(valiLower)) {
-      // 🎯 Vali est live → toujours #1
       const liveNoVali = live.filter(c => c.toLowerCase() !== valiLower);
-
-      // 👉 On boost explorajeux uniquement à l'intérieur des chaînes live (hors Vali)
       const boostedLiveNoVali = boostExploraIfLive(liveNoVali);
 
       ordered = [
@@ -163,7 +152,6 @@ app.get("/live-order", async (req, res) => {
         ...offline.filter(c => c.toLowerCase() !== valiLower)
       ];
     } else {
-      // Vali n'est pas live → on boost explorajeux seulement dans la partie live
       const boostedLive = boostExploraIfLive(live);
       ordered = [...boostedLive, ...offline];
     }
@@ -178,7 +166,6 @@ app.get("/live-order", async (req, res) => {
   }
 });
 
-// Route simple de test
 app.get("/", (req, res) => {
   res.send("CrackTheCode Twitch API OK");
 });
