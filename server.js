@@ -11,22 +11,22 @@ const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 
 /* ============================================================
-   🔥 LISTE DES CHAÎNES SURVEILLÉES
-   - facteurgeek ajouté en dernier
+   🔥 LISTE DES CHAÎNES SURVEILLÉES (MAJ)
+   - retiré: lesfaineants, lyvickmax
+   - ajouté: biggunner911
 ============================================================ */
 const CHANNELS = [
   "valiv2",
   "crackthecode1",
   "dacemaster",
-  "lesfaineants",
   "whiteshad0wz1989",
-  "lyvickmax",
   "skyrroztv",
   "cohhcarnage",
+  "biggunner911",     // ✅ AJOUTÉ
   "lvndmark",
   "eslcs",
   "explorajeux",
-  "facteurgeek"   // ⭐ en dernier, mais #1 si live
+  "facteurgeek"
 ];
 
 let accessToken = null;
@@ -108,23 +108,20 @@ async function getLiveStatus() {
     return [];
   }
 
-  return data.data.map(s => s.user_login.toLowerCase());
+  return data.data.map(s => (s.user_login || "").toLowerCase());
 }
 
 /* ============================================================
-   BOOST EXPLORAJUEX
+   BOOST UN CHANNEL AVANT CERTAINS AUTRES (si présent)
 ============================================================ */
-function boostExploraIfLive(arr) {
-  const SPECIAL = "explorajeux";
-  const BEFORE_TARGETS = ["lvndmark", "eslcs"];
-
-  if (!arr.includes(SPECIAL)) return arr;
+function boostIfPresent(arr, special, beforeTargets) {
+  if (!arr.includes(special)) return arr;
 
   const boosted = arr.slice();
-  const specialIndex = boosted.indexOf(SPECIAL);
+  const specialIndex = boosted.indexOf(special);
   let targetIndex = null;
 
-  for (const t of BEFORE_TARGETS) {
+  for (const t of beforeTargets) {
     const idx = boosted.indexOf(t);
     if (idx !== -1) {
       targetIndex = targetIndex === null ? idx : Math.min(targetIndex, idx);
@@ -134,22 +131,22 @@ function boostExploraIfLive(arr) {
   if (targetIndex === null || specialIndex < targetIndex) return boosted;
 
   boosted.splice(specialIndex, 1);
-  boosted.splice(targetIndex, 0, SPECIAL);
+  boosted.splice(targetIndex, 0, special);
 
   return boosted;
 }
 
 /* ============================================================
    ROUTE LIVE-ORDER
-   🔥 RÈGLES :
-   - facteurgeek = #1 absolu si live
-   - sinon vali = #1 s’il est live
-   - boost explorajeux conservé
-   - live en premier, offline ensuite
+   🔥 RÈGLES (MAJ)
+   - 1) Vali #1 s'il est live
+   - 2) Sinon crackthecode1 #1 s'il est live (donc FG ne te dépasse plus)
+   - 3) Sinon comportement normal
+   - Boost explorajeux + boost biggunner (devant lvndmark/eslcs) quand live
 ============================================================ */
 app.get("/live-order", async (req, res) => {
   try {
-    const liveList = await getLiveStatus();
+    const liveList = await getLiveStatus(); // array en lowercase
 
     const live = [];
     const offline = [];
@@ -159,35 +156,48 @@ app.get("/live-order", async (req, res) => {
       else offline.push(ch);
     }
 
-    const fg = "facteurgeek";
     const vali = "valiv2";
+    const ctc  = "crackthecode1";
+
+    // Boosts dans la section LIVE (si présents)
+    // 1) explorajeux devant lvndmark/eslcs
+    // 2) biggunner911 devant lvndmark/eslcs
+    function applyBoosts(liveArr) {
+      let out = liveArr.slice();
+      out = boostIfPresent(out, "explorajeux", ["lvndmark", "eslcs"]);
+      out = boostIfPresent(out, "biggunner911", ["lvndmark", "eslcs"]);
+      return out;
+    }
 
     let ordered = [];
 
-    // 🔥 1) facteurgeek est live → #1 absolu
-    if (liveList.includes(fg.toLowerCase())) {
-      ordered = [
-        fg,
-        ...live.filter(c => c.toLowerCase() !== fg.toLowerCase()),
-        ...offline.filter(c => c.toLowerCase() !== fg.toLowerCase())
-      ];
-    }
-
-    // 🔥 2) facteurgeek N'EST PAS live → priorité Vali si live
-    else if (liveList.includes(vali.toLowerCase())) {
-      const liveNoVali = live.filter(c => c.toLowerCase() !== vali.toLowerCase());
-      const boostedLive = boostExploraIfLive(liveNoVali);
+    // 🔥 1) Vali live -> #1
+    if (liveList.includes(vali)) {
+      const liveNoVali = live.filter(c => c.toLowerCase() !== vali);
+      const boostedLive = applyBoosts(liveNoVali);
 
       ordered = [
         vali,
         ...boostedLive,
-        ...offline.filter(c => c.toLowerCase() !== vali.toLowerCase())
+        ...offline.filter(c => c.toLowerCase() !== vali)
       ];
     }
 
-    // 🔥 3) Aucun FG/Vali live → comportement normal
+    // 🔥 2) Sinon toi live -> #1 (empêche FG de te passer)
+    else if (liveList.includes(ctc)) {
+      const liveNoCtc = live.filter(c => c.toLowerCase() !== ctc);
+      const boostedLive = applyBoosts(liveNoCtc);
+
+      ordered = [
+        ctc,
+        ...boostedLive,
+        ...offline.filter(c => c.toLowerCase() !== ctc)
+      ];
+    }
+
+    // 🔥 3) Sinon normal
     else {
-      const boostedLive = boostExploraIfLive(live);
+      const boostedLive = applyBoosts(live);
       ordered = [
         ...boostedLive,
         ...offline
