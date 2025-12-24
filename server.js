@@ -14,8 +14,10 @@ const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
    🔥 LISTE DES CHAÎNES SURVEILLÉES (MAJ)
    - retiré: lesfaineants, lyvickmax
    - ajouté: biggunner911
+   - ajouté: trisha_187qc
 ============================================================ */
 const CHANNELS = [
+  "trisha_187qc",    // ✅ NOUVELLE CHAÎNE
   "valiv2",
   "crackthecode1",
   "dacemaster",
@@ -139,10 +141,10 @@ function boostIfPresent(arr, special, beforeTargets) {
 /* ============================================================
    ROUTE LIVE-ORDER
    🔥 RÈGLES (MAJ)
-   - 1) Vali #1 s'il est live
-   - 2) Sinon crackthecode1 #1 s'il est live (donc FG ne te dépasse plus)
-   - 3) Sinon comportement normal
-   - Boost explorajeux + boost biggunner (devant lvndmark/eslcs) quand live
+   - 1) Trisha #1 si elle est live (même devant Vali et toi)
+   - 2) Sinon Vali #1 s'il est live
+   - 3) Sinon crackthecode1 #1 s'il est live
+   - 4) Sinon comportement normal + boosts explorajeux / biggunner
 ============================================================ */
 app.get("/live-order", async (req, res) => {
   try {
@@ -156,8 +158,9 @@ app.get("/live-order", async (req, res) => {
       else offline.push(ch);
     }
 
-    const vali = "valiv2";
-    const ctc  = "crackthecode1";
+    const trisha = "trisha_187qc";
+    const vali   = "valiv2";
+    const ctc    = "crackthecode1";
 
     // Boosts dans la section LIVE (si présents)
     // 1) explorajeux devant lvndmark/eslcs
@@ -171,8 +174,20 @@ app.get("/live-order", async (req, res) => {
 
     let ordered = [];
 
-    // 🔥 1) Vali live -> #1
-    if (liveList.includes(vali)) {
+    // 🔥 1) Trisha live -> #1 (devant tout le monde)
+    if (liveList.includes(trisha)) {
+      const liveNoTrisha = live.filter(c => c.toLowerCase() !== trisha);
+      const boostedLive = applyBoosts(liveNoTrisha);
+
+      ordered = [
+        trisha,
+        ...boostedLive,
+        ...offline.filter(c => c.toLowerCase() !== trisha)
+      ];
+    }
+
+    // 🔥 2) Sinon Vali live -> #1
+    else if (liveList.includes(vali)) {
       const liveNoVali = live.filter(c => c.toLowerCase() !== vali);
       const boostedLive = applyBoosts(liveNoVali);
 
@@ -183,7 +198,7 @@ app.get("/live-order", async (req, res) => {
       ];
     }
 
-    // 🔥 2) Sinon toi live -> #1 (empêche FG de te passer)
+    // 🔥 3) Sinon toi live -> #1 (empêche FG de te passer)
     else if (liveList.includes(ctc)) {
       const liveNoCtc = live.filter(c => c.toLowerCase() !== ctc);
       const boostedLive = applyBoosts(liveNoCtc);
@@ -195,7 +210,7 @@ app.get("/live-order", async (req, res) => {
       ];
     }
 
-    // 🔥 3) Sinon normal
+    // 🔥 4) Sinon normal
     else {
       const boostedLive = applyBoosts(live);
       ordered = [
