@@ -15,16 +15,18 @@ const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
    - retiré: lesfaineants, lyvickmax
    - ajouté: biggunner911
    - ajouté: trisha_187qc
+   - ajouté: skyfarroncritique ✅ NOUVEAU
 ============================================================ */
 const CHANNELS = [
-  "trisha_187qc",    // ✅ NOUVELLE CHAÎNE
+  "trisha_187qc",
   "valiv2",
   "crackthecode1",
   "dacemaster",
   "whiteshad0wz1989",
   "skyrroztv",
+  "skyfarroncritique",  // ✅ AJOUTÉ
   "cohhcarnage",
-  "biggunner911",     // ✅ AJOUTÉ
+  "biggunner911",
   "lvndmark",
   "eslcs",
   "explorajeux",
