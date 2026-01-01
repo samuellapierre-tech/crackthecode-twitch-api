@@ -11,20 +11,16 @@ const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 
 /* ============================================================
-   🔥 LISTE DES CHAÎNES SURVEILLÉES (MAJ)
-   - retiré: lesfaineants, lyvickmax
-   - ajouté: biggunner911
-   - ajouté: trisha_187qc
-   - ajouté: skyfarroncritique ✅ NOUVEAU
+   🔥 LISTE DES CHAÎNES SURVEILLÉES
 ============================================================ */
 const CHANNELS = [
+  "crackthecode1",       // 🎮 TOI
   "trisha_187qc",
+  "skyfarroncritique",   // 🎯 PRIORITÉ #3
   "valiv2",
-  "crackthecode1",
   "dacemaster",
   "whiteshad0wz1989",
   "skyrroztv",
-  "skyfarroncritique",  // ✅ AJOUTÉ
   "cohhcarnage",
   "biggunner911",
   "lvndmark",
@@ -142,11 +138,11 @@ function boostIfPresent(arr, special, beforeTargets) {
 
 /* ============================================================
    ROUTE LIVE-ORDER
-   🔥 RÈGLES (MAJ)
-   - 1) Trisha #1 si elle est live (même devant Vali et toi)
-   - 2) Sinon Vali #1 s'il est live
-   - 3) Sinon crackthecode1 #1 s'il est live
-   - 4) Sinon comportement normal + boosts explorajeux / biggunner
+   🔥 NOUVELLE PRIORITÉ :
+   1) CrackTheCode1 #1 (si live)
+   2) Trisha_187qc #2 (si live)
+   3) SkyFarronCritique #3 (si live)
+   4) Ensuite les autres avec boosts explorajeux / biggunner
 ============================================================ */
 app.get("/live-order", async (req, res) => {
   try {
@@ -160,9 +156,9 @@ app.get("/live-order", async (req, res) => {
       else offline.push(ch);
     }
 
+    const ctc = "crackthecode1";
     const trisha = "trisha_187qc";
-    const vali   = "valiv2";
-    const ctc    = "crackthecode1";
+    const skyfaron = "skyfarroncritique";
 
     // Boosts dans la section LIVE (si présents)
     // 1) explorajeux devant lvndmark/eslcs
@@ -176,43 +172,111 @@ app.get("/live-order", async (req, res) => {
 
     let ordered = [];
 
-    // 🔥 1) Trisha live -> #1 (devant tout le monde)
-    if (liveList.includes(trisha)) {
-      const liveNoTrisha = live.filter(c => c.toLowerCase() !== trisha);
-      const boostedLive = applyBoosts(liveNoTrisha);
-
-      ordered = [
-        trisha,
-        ...boostedLive,
-        ...offline.filter(c => c.toLowerCase() !== trisha)
-      ];
-    }
-
-    // 🔥 2) Sinon Vali live -> #1
-    else if (liveList.includes(vali)) {
-      const liveNoVali = live.filter(c => c.toLowerCase() !== vali);
-      const boostedLive = applyBoosts(liveNoVali);
-
-      ordered = [
-        vali,
-        ...boostedLive,
-        ...offline.filter(c => c.toLowerCase() !== vali)
-      ];
-    }
-
-    // 🔥 3) Sinon toi live -> #1 (empêche FG de te passer)
-    else if (liveList.includes(ctc)) {
+    // 🔥 1) CrackTheCode1 live -> #1 (TOI en premier)
+    if (liveList.includes(ctc)) {
       const liveNoCtc = live.filter(c => c.toLowerCase() !== ctc);
-      const boostedLive = applyBoosts(liveNoCtc);
+      
+      // 🔥 2) Trisha #2 si elle est live
+      if (liveList.includes(trisha)) {
+        const liveNoTrisha = liveNoCtc.filter(c => c.toLowerCase() !== trisha);
+        
+        // 🔥 3) SkyFaron #3 si elle est live
+        if (liveList.includes(skyfaron)) {
+          const liveNoSky = liveNoTrisha.filter(c => c.toLowerCase() !== skyfaron);
+          const boostedLive = applyBoosts(liveNoSky);
+          
+          ordered = [
+            ctc,
+            trisha,
+            skyfaron,
+            ...boostedLive,
+            ...offline.filter(c => {
+              const lower = c.toLowerCase();
+              return lower !== ctc && lower !== trisha && lower !== skyfaron;
+            })
+          ];
+        } else {
+          // CTC + Trisha live, mais pas SkyFaron
+          const boostedLive = applyBoosts(liveNoTrisha);
+          ordered = [
+            ctc,
+            trisha,
+            ...boostedLive,
+            ...offline.filter(c => {
+              const lower = c.toLowerCase();
+              return lower !== ctc && lower !== trisha;
+            })
+          ];
+        }
+      } 
+      // CTC live, Trisha offline
+      else if (liveList.includes(skyfaron)) {
+        // CTC + SkyFaron live, mais pas Trisha
+        const liveNoSky = liveNoCtc.filter(c => c.toLowerCase() !== skyfaron);
+        const boostedLive = applyBoosts(liveNoSky);
+        
+        ordered = [
+          ctc,
+          skyfaron,
+          ...boostedLive,
+          ...offline.filter(c => {
+            const lower = c.toLowerCase();
+            return lower !== ctc && lower !== skyfaron;
+          })
+        ];
+      } else {
+        // CTC live seul
+        const boostedLive = applyBoosts(liveNoCtc);
+        ordered = [
+          ctc,
+          ...boostedLive,
+          ...offline.filter(c => c.toLowerCase() !== ctc)
+        ];
+      }
+    }
 
+    // 🔥 2) CTC offline, Trisha live -> #1
+    else if (liveList.includes(trisha)) {
+      const liveNoTrisha = live.filter(c => c.toLowerCase() !== trisha);
+      
+      // 🔥 3) SkyFaron #2 si elle est live
+      if (liveList.includes(skyfaron)) {
+        const liveNoSky = liveNoTrisha.filter(c => c.toLowerCase() !== skyfaron);
+        const boostedLive = applyBoosts(liveNoSky);
+        
+        ordered = [
+          trisha,
+          skyfaron,
+          ...boostedLive,
+          ...offline.filter(c => {
+            const lower = c.toLowerCase();
+            return lower !== trisha && lower !== skyfaron;
+          })
+        ];
+      } else {
+        // Trisha live, SkyFaron offline
+        const boostedLive = applyBoosts(liveNoTrisha);
+        ordered = [
+          trisha,
+          ...boostedLive,
+          ...offline.filter(c => c.toLowerCase() !== trisha)
+        ];
+      }
+    }
+
+    // 🔥 3) CTC + Trisha offline, SkyFaron live -> #1
+    else if (liveList.includes(skyfaron)) {
+      const liveNoSky = live.filter(c => c.toLowerCase() !== skyfaron);
+      const boostedLive = applyBoosts(liveNoSky);
+      
       ordered = [
-        ctc,
+        skyfaron,
         ...boostedLive,
-        ...offline.filter(c => c.toLowerCase() !== ctc)
+        ...offline.filter(c => c.toLowerCase() !== skyfaron)
       ];
     }
 
-    // 🔥 4) Sinon normal
+    // 🔥 4) Aucun des 3 n'est live -> ordre normal
     else {
       const boostedLive = applyBoosts(live);
       ordered = [
